@@ -3,7 +3,7 @@ const { connectDB } = require('./utils/mongo')
 const bodyParser = require('body-parser')
 const { Server } = require('socket.io')
 const { createServer } = require('http')
-const {authRouter} = require('./routes/auth.router')
+const { authRouter } = require('./routes/auth.router')
 
 
 const app = express()
