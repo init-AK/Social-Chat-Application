@@ -5,9 +5,9 @@ const jwt = require('jsonwebtoken');
 const secretKey = 'chatappln';
 
 async function registerController(req, res) {
-    const {email, username, password} = req.body;
+    const { email, username, password } = req.body;
 
-    const userAlreadyExists = await User.findOne({email});
+    const userAlreadyExists = await User.findOne({ email });
     if (userAlreadyExists) {
         return res.status(409).json({
             error: 'User already exists!'
@@ -15,16 +15,19 @@ async function registerController(req, res) {
     }
 
     const hashedPassword = await hashPassword(password);
-    const newUser = new User({email, username, password: hashedPassword});
+    const newUser = new User({ email, username, password: hashedPassword });
     await newUser.save();
 
-    const token = generateToken(newUser);
-    return res.status(201).json({token});
+    const accessToken = generateAccessToken(newUser);//expires in 30m
+    const refreshToken = generateRefreshToken(newUser);//expiry set to 7d
+
+    //sending both access token and refresh token back to client upon USER registeration
+    return res.status(201).json({ accessToken, refreshToken }); 
 }
 
 async function loginController(req, res) {
     //get user details
-    const {email, password} = req.body;
+    const { email, password } = req.body;
 
     //check if either strings are empty
     if (!email || !password) {
@@ -33,7 +36,7 @@ async function loginController(req, res) {
         });
     }
     //Fetch the user with their email
-    const currentUser = await User.findOne({email});
+    const currentUser = await User.findOne({ email });
     //if user does not exist, email is not registered with us
     if (!currentUser) {
         return res.status(404).json({
@@ -43,9 +46,12 @@ async function loginController(req, res) {
 
     const isPasswordValid = await checkPasswordValidity(password, currentUser);
     if (isPasswordValid) {
-        const token = generateToken(currentUser);
+        const accessToken = generateAccessToken(currentUser);
+        const refreshToken = generateRefreshToken(currentUser)
+
         console.log(`${currentUser.username} has logged in successfully.`)
-        return res.status(200).json({token});
+
+        return res.status(200).json({ accessToken, refreshToken });
     } else {
         return res.status(401).json({
             error: "Incorrect password"
@@ -53,11 +59,12 @@ async function loginController(req, res) {
     }
 }
 
-async function logoutController(req,res) {
-    res.status(200).send({
+//jwt logout controller has to be setup on client side by deleting the web tokens thats all 
+async function logoutController(req, res) {
+    return res.status(200).send({
         message: "Log out succesful. Please clear your token."
     })
-}//jwt logout controller has to be setup on client side by deleting the web tokens thats all 
+}
 
 async function checkPasswordValidity(password, user) {
     try {
@@ -68,9 +75,14 @@ async function checkPasswordValidity(password, user) {
     }
 }
 
-function generateToken(user) {
-    const payload = {sub: user._id};
-    return jwt.sign(payload, secretKey);
+function generateRefreshToken(user) {
+    const payload = { sub: user._id }
+    return jwt.sign(payload, secretKey, { expiresIn: '7d' })
+}
+
+function generateAccessToken(user) {
+    const payload = { sub: user._id };
+    return jwt.sign(payload, secretKey, { expiresIn: '30m' });
 }
 
 async function hashPassword(password) {
